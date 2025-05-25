@@ -6,6 +6,8 @@
 int main(void)
 {
     IFOR_state state = {0};
+    state.surface_width = 800;
+    state.surface_height = 300;
 
     if (!wayland_init(&state)) {
         return EXIT_FAILURE;
