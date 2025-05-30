@@ -2,16 +2,15 @@ SHELL = /bin/sh
 
 CC = gcc
 CFLAGS = -Wall -Wextra -pedantic -std=c99
-
 PKG_CONFIG = pkg-config
-WAYLAND_CFLAGS = $(shell $(PKG_CONFIG) --cflags wayland-client)
-WAYLAND_LIBS = $(shell $(PKG_CONFIG) --libs wayland-client)
-FREETYPE_CFLAGS = $(shell $(PKG_CONFIG) --cflags freetype2)
-FREETYPE_LIBS = $(shell $(PKG_CONFIG) --libs freetype2)
 
-CFLAGS += $(WAYLAND_CFLAGS)
-CFLAGS += $(FREETYPE_CFLAGS)
-LDFLAGS = $(FREETYPE_LIBS) $(WAYLAND_LIBS) -lrt
+PACKAGES = wayland-client freetype2
+
+PKGS_CFLAGS = $(shell $(PKG_CONFIG) --cflags $(PACKAGES))
+PKGS_LDFLAGS = $(shell $(PKG_CONFIG) --libs $(PACKAGES))
+
+CFLAGS += $(PKGS_CFLAGS)
+LDFLAGS = $(PKGS_LDFLAGS) -lrt
 
 SRC_DIR = src
 BUILD_DIR = build

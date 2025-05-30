@@ -32,6 +32,7 @@ static int create_shm_file(size_t size)
 
 static void release_buffer(void *data, struct wl_buffer *wl_buffer)
 {
+    (void)data;
     wl_buffer_destroy(wl_buffer);
 }
 
@@ -81,6 +82,9 @@ static void layer_surface_configure(void *data,
                                     uint32_t serial, uint32_t width,
                                     uint32_t height)
 {
+    (void)width;
+    (void)height;
+
     IFOR_state *state = data;
     zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
 
@@ -94,8 +98,9 @@ static void layer_surface_configure(void *data,
 static void layer_surface_closed(void *data,
                                  struct zwlr_layer_surface_v1 *layer_surface)
 {
-    IFOR_state *state = data;
+    (void)layer_surface;
 
+    IFOR_state *state = data;
     zwlr_layer_surface_v1_destroy(state->layer_surface);
     state->layer_surface = NULL;
 
@@ -108,33 +113,25 @@ static const struct zwlr_layer_surface_v1_listener layer_surface_listener = {
     .closed = layer_surface_closed,
 };
 
-static void output_handle_geometry(void *data, struct wl_output *wl_output,
-                                   int32_t x, int32_t y, int32_t physical_width,
-                                   int32_t physical_height, int32_t subpixel,
-                                   const char *make, const char *model,
-                                   int32_t transform)
-{
-    // INFO: left blank
-}
-
 static void output_handle_mode(void *data, struct wl_output *wl_output,
                                uint32_t flags, int32_t width, int32_t height,
                                int32_t refresh)
 {
+    (void)wl_output;
+    (void)refresh;
+
     IFOR_state *state = data;
 
     if (flags & WL_OUTPUT_MODE_CURRENT) {
         state->screen_width = width;
         state->screen_height = height;
-        printf("Screen width: %d\n", width);
-        printf("Screen height: %d\n", height);
     }
 }
 
 static void no_op() {}
 
 static const struct wl_output_listener output_listener = {
-    .geometry = output_handle_geometry,
+    .geometry = no_op,
     .mode = output_handle_mode,
     .name = no_op,
     .description = no_op,
@@ -146,6 +143,8 @@ static void registry_global(void *data, struct wl_registry *wl_registry,
                             uint32_t name, const char *interface,
                             uint32_t version)
 {
+    (void)version;
+
     IFOR_state *state = data;
     if (strcmp(interface, wl_compositor_interface.name) == 0) {
         state->compositor = wl_registry_bind(wl_registry, name,
@@ -165,7 +164,9 @@ static void registry_global(void *data, struct wl_registry *wl_registry,
 static void registry_global_remove(void *data, struct wl_registry *registry,
                                    uint32_t name)
 {
-    // INFO: left blank
+    (void)data;
+    (void)registry;
+    (void)name;
 }
 
 static const struct wl_registry_listener registry_listener = {
@@ -221,6 +222,7 @@ int wayland_init(IFOR_state *state)
 
 void wayland_cleanup(IFOR_state *state)
 {
+    freetype_cleanup();
     wl_output_destroy(state->output);
     zwlr_layer_surface_v1_destroy(state->layer_surface);
     wl_surface_destroy(state->surface);

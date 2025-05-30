@@ -1,8 +1,9 @@
 #include <stdio.h>
 
-#include <freetype2/ft2build.h>
+#include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include "config.h"
 #include "font.h"
 
 FT_Library library;
@@ -14,11 +15,8 @@ int freetype_init()
         fprintf(stderr, "Error during library initialization.\n");
         return 0;
     }
-
-    const char *filepath =
-        "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf";
-    if (FT_New_Face(library, filepath, 0, &face)) {
-        fprintf(stderr, "Error loading font face \"%s\".\n", filepath);
+    if (FT_New_Face(library, font, 0, &face)) {
+        fprintf(stderr, "Error loading font face \"%s\".\n", font);
         return 0;
     }
 
@@ -69,3 +67,5 @@ void render(uint32_t *data, int width, const char *string, int length)
         penx += face->glyph->advance.x >> 6;
     }
 }
+
+void freetype_cleanup() { FT_Done_FreeType(library); }
