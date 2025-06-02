@@ -4,7 +4,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pedantic -std=c99
 PKG_CONFIG = pkg-config
 
-PACKAGES = wayland-client freetype2
+PACKAGES = wayland-client freetype2 wayland-egl egl glesv2
 
 PKGS_CFLAGS = $(shell $(PKG_CONFIG) --cflags $(PACKAGES))
 PKGS_LDFLAGS = $(shell $(PKG_CONFIG) --libs $(PACKAGES))

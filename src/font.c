@@ -9,19 +9,19 @@
 FT_Library library;
 FT_Face face;
 
-int freetype_init()
+int freetype_init(void)
 {
     if (FT_Init_FreeType(&library)) {
-        fprintf(stderr, "Error during library initialization.\n");
+        fprintf(stderr, "[FreeType] Error during library initialization.\n");
         return 0;
     }
     if (FT_New_Face(library, font, 0, &face)) {
-        fprintf(stderr, "Error loading font face \"%s\".\n", font);
+        fprintf(stderr, "[FreeType] Error loading font face \"%s\".\n", font);
         return 0;
     }
 
-    if (FT_Set_Char_Size(face, 0, 14 * 64, 96, 96)) {
-        fprintf(stderr, "Error setting char size.\n");
+    if (FT_Set_Pixel_Sizes(face, 0, 16)) {
+        fprintf(stderr, "[FreeType] Error setting pixel sizes.\n");
         return 0;
     }
 
@@ -55,7 +55,8 @@ void render(uint32_t *data, int width, const char *string, int length)
     int peny = 100;
     for (int i = 0; i < length; i++) {
         if (FT_Load_Char(face, string[i], FT_LOAD_RENDER)) {
-            fprintf(stderr, "Error loading char glyph '%c'\n", string[i]);
+            fprintf(stderr, "[FreeType] Error loading char glyph '%c'\n",
+                    string[i]);
             continue;
         }
 
@@ -68,4 +69,4 @@ void render(uint32_t *data, int width, const char *string, int length)
     }
 }
 
-void freetype_cleanup() { FT_Done_FreeType(library); }
+void freetype_cleanup(void) { FT_Done_FreeType(library); }
