@@ -4,6 +4,9 @@
 build/
 generated/
 
+### clangd ###
+.cache/
+
 ### C ###
 # Prerequisites
 *.d

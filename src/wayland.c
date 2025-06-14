@@ -6,17 +6,8 @@
 #include <wayland-egl-core.h>
 #include <wayland-egl.h>
 
+#include "renderer.h"
 #include "wayland.h"
-
-static void draw_surface(IFOR_state *state)
-{
-
-    eglMakeCurrent(state->egl_display, state->egl_surface, state->egl_surface,
-                   state->egl_context);
-    glClearColor(1.0, 0.0, 0.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    eglSwapBuffers(state->egl_display, state->egl_surface);
-}
 
 static void layer_surface_configure(void *data,
                                     struct zwlr_layer_surface_v1 *layer_surface,
@@ -28,8 +19,10 @@ static void layer_surface_configure(void *data,
 
     IFOR_state *state = data;
     zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
-    wl_egl_window_resize(state->egl_window, width, height, 0, 0);
-    draw_surface(state);
+    if (width && height) {
+        wl_egl_window_resize(state->egl_window, width, height, 0, 0);
+    }
+    render(state);
 }
 
 static void layer_surface_closed(void *data,
@@ -93,15 +86,45 @@ int wayland_init(IFOR_state *state)
     wl_display_roundtrip(state->display);
 
     state->egl_display = eglGetDisplay(state->display);
-    eglInitialize(state->egl_display, NULL, NULL);
-    eglBindAPI(EGL_OPENGL_BIT);
-    EGLint attr_list[] = {EGL_RED_SIZE,  1, EGL_GREEN_SIZE, 1,
-                          EGL_BLUE_SIZE, 1, EGL_NONE};
+
+    if (!eglInitialize(state->egl_display, NULL, NULL)) {
+        fprintf(stderr, "Failed to initialize egl\n");
+        return 0;
+    }
+
+    if (!eglBindAPI(EGL_OPENGL_ES_API)) {
+        fprintf(stderr, "Failed to bind EGL_OPENGL_ES_API\n");
+        return 0;
+    }
+
+    EGLint config_attribs[] = {
+        EGL_RENDERABLE_TYPE,
+        EGL_OPENGL_ES2_BIT,
+        EGL_SURFACE_TYPE,
+        EGL_WINDOW_BIT,
+        EGL_RED_SIZE,
+        8,
+        EGL_GREEN_SIZE,
+        8,
+        EGL_BLUE_SIZE,
+        8,
+        EGL_ALPHA_SIZE,
+        8,
+        EGL_NONE,
+    };
+
     EGLConfig config;
     EGLint num_config;
-    eglChooseConfig(state->egl_display, attr_list, &config, 1, &num_config);
+    eglChooseConfig(state->egl_display, config_attribs, &config, 1,
+                    &num_config);
+
+    EGLint context_attribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION,
+        2,
+        EGL_NONE,
+    };
     state->egl_context = eglCreateContext(state->egl_display, config,
-                                          EGL_NO_CONTEXT, NULL);
+                                          EGL_NO_CONTEXT, context_attribs);
 
     state->surface = wl_compositor_create_surface(state->compositor);
     state->layer_surface = zwlr_layer_shell_v1_get_layer_surface(
@@ -122,8 +145,17 @@ int wayland_init(IFOR_state *state)
         eglCreateWindowSurface(state->egl_display, config,
                                (EGLNativeWindowType)state->egl_window, NULL);
 
+    if (!eglMakeCurrent(state->egl_display, state->egl_surface,
+                        state->egl_surface, state->egl_context)) {
+        fprintf(stderr, "Failed to make egl context current\n");
+        return 0;
+    }
+
+    if (!gl_init()) {
+        return 0;
+    }
+
     wl_surface_commit(state->surface);
-    wl_display_roundtrip(state->display);
 
     // struct wl_callback *callback = wl_surface_frame(state.surface);
     // wl_callback_add_listener(callback, &surface_frame_listener, &state);
@@ -136,6 +168,7 @@ int wayland_init(IFOR_state *state)
 
 void wayland_cleanup(IFOR_state *state)
 {
+    gl_cleanup();
     eglDestroySurface(state->egl_display, state->egl_surface);
     eglDestroyContext(state->egl_display, state->egl_context);
     wl_egl_window_destroy(state->egl_window);

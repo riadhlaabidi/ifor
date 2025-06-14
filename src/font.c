@@ -49,7 +49,7 @@ static void draw_bitmap(uint32_t *data, int width, FT_Bitmap *bitmap, int x,
     }
 }
 
-void render(uint32_t *data, int width, const char *string, int length)
+void freetype_render(uint32_t *data, int width, const char *string, int length)
 {
     int penx = 0;
     int peny = 100;
