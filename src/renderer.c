@@ -6,7 +6,20 @@
 #include "renderer.h"
 
 GLuint program;
+GLuint vbo;
 GLint attribute_coord2d;
+
+static void log_program_info(GLuint prg)
+{
+    GLsizei msg_length = 0;
+    glGetProgramiv(prg, GL_INFO_LOG_LENGTH, &msg_length);
+    if (msg_length > 0) {
+        char *message = (char *)malloc(msg_length);
+        glGetProgramInfoLog(prg, msg_length, NULL, message);
+        fprintf(stderr, "%s\n", message);
+        free(message);
+    }
+}
 
 static void log_shader_info(GLuint shader)
 {
@@ -27,7 +40,7 @@ static GLuint create_shader(const char *path, GLenum type)
     const GLchar *src = read_file(path);
     if (!src) {
         fprintf(stderr, "Error reading file \"%s\"\n", path);
-        goto fail;
+        goto defer;
     }
 
     shader = glCreateShader(type);
@@ -42,13 +55,24 @@ static GLuint create_shader(const char *path, GLenum type)
         glDeleteShader(shader);
     }
 
-fail:
-    free((char *)src);
+defer:
+    free((void *)src);
     return shader;
 }
 
 int gl_init(void)
 {
+    /* Enable alpha */
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    /* VBO */
+    GLfloat triangle_vertices[] = {0.0, 0.8, -0.8, -0.8, 0.8, -0.8};
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), triangle_vertices,
+                 GL_DYNAMIC_DRAW);
+
     GLint link = GL_FALSE;
 
     GLuint vs = create_shader(vertex_shader_path, GL_VERTEX_SHADER);
@@ -65,6 +89,7 @@ int gl_init(void)
 
     if (!link) {
         fprintf(stderr, "Error in program linking.\n");
+        log_program_info(program);
         return 0;
     }
 
@@ -82,18 +107,19 @@ int gl_init(void)
 
 void render(IFOR_state *state)
 {
-    glClearColor(1.0, 1.0, 1.0, 1.0);
+    glClearColor(0.1, 0.1, 0.1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
     glUseProgram(program);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glEnableVertexAttribArray(attribute_coord2d);
-    GLfloat triangle_vertices[] = {0.0, 0.8, -0.8, -0.8, 0.8, -0.8};
-    glVertexAttribPointer(attribute_coord2d, 2, GL_FLOAT, GL_FALSE, 0,
-                          triangle_vertices);
-
+    glVertexAttribPointer(attribute_coord2d, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glDisableVertexAttribArray(attribute_coord2d);
-
     eglSwapBuffers(state->egl_display, state->egl_surface);
 }
 
-void gl_cleanup(void) { glDeleteProgram(program); }
+void gl_cleanup(void)
+{
+    glDeleteProgram(program);
+    glDeleteBuffers(1, &vbo);
+}

@@ -103,13 +103,13 @@ int wayland_init(IFOR_state *state)
         EGL_SURFACE_TYPE,
         EGL_WINDOW_BIT,
         EGL_RED_SIZE,
-        8,
+        1,
         EGL_GREEN_SIZE,
-        8,
+        1,
         EGL_BLUE_SIZE,
-        8,
+        1,
         EGL_ALPHA_SIZE,
-        8,
+        1,
         EGL_NONE,
     };
 

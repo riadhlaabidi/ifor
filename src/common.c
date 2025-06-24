@@ -14,26 +14,26 @@ char *read_file(const char *path)
     if (f == NULL) {
         fprintf(stderr, "Failed to open file \"%s\": %s\n", path,
                 strerror(errno));
-        goto fail;
+        goto defer;
     }
 
     if (fseek(f, 0, SEEK_END) < 0) {
         fprintf(stderr, "Failed to seek in file \"%s\": %s\n", path,
                 strerror(errno));
-        goto fail;
+        goto defer;
     }
 
     long size = ftell(f);
     if (size < 0) {
         fprintf(stderr, "Failed to get file position in file \"%s\": %s\n",
                 path, strerror(errno));
-        goto fail;
+        goto defer;
     }
 
     if (fseek(f, 0, SEEK_SET) < 0) {
         fprintf(stderr, "Failed to seek in file \"%s\": %s\n", path,
                 strerror(errno));
-        goto fail;
+        goto defer;
     }
 
     content = malloc(size * sizeof(char));
@@ -41,7 +41,7 @@ char *read_file(const char *path)
         fprintf(stderr,
                 "Failed to allocate memory for file buffer \"%s\": %s\n", path,
                 strerror(errno));
-        goto fail;
+        goto defer;
     }
     fread(content, size, 1, f);
     if (ferror(f)) {
@@ -49,7 +49,7 @@ char *read_file(const char *path)
                 strerror(errno));
     }
 
-fail:
+defer:
     if (f) {
         fclose(f);
     }
