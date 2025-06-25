@@ -1,13 +1,17 @@
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <unistd.h>
-#include <wayland-egl-core.h>
 #include <wayland-egl.h>
+#include <xkbcommon/xkbcommon.h>
 
+#include "ifor.h"
 #include "renderer.h"
 #include "wayland.h"
+#include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
 static void layer_surface_configure(void *data,
                                     struct zwlr_layer_surface_v1 *layer_surface,
@@ -43,6 +47,145 @@ static const struct zwlr_layer_surface_v1_listener layer_surface_listener = {
     .closed = layer_surface_closed,
 };
 
+static void wl_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
+                               uint32_t format, int32_t fd, uint32_t size)
+{
+    (void)wl_keyboard;
+
+    IFOR_state *state = data;
+    assert(format == WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1);
+
+    char *map_shm = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+    assert(map_shm != MAP_FAILED);
+
+    struct xkb_keymap *xkb_keymap = xkb_keymap_new_from_string(
+        state->xkb_context, map_shm, XKB_KEYMAP_FORMAT_TEXT_V1,
+        XKB_KEYMAP_COMPILE_NO_FLAGS);
+
+    munmap(map_shm, size);
+    close(fd);
+
+    struct xkb_state *xkb_state = xkb_state_new(xkb_keymap);
+    xkb_keymap_unref(state->xkb_keymap);
+    xkb_state_unref(state->xkb_state);
+    state->xkb_keymap = xkb_keymap;
+    state->xkb_state = xkb_state;
+}
+
+static void wl_keyboard_enter(void *data, struct wl_keyboard *wl_keyboard,
+                              uint32_t serial, struct wl_surface *surface,
+                              struct wl_array *keys)
+{
+    (void)data;
+    (void)wl_keyboard;
+    (void)serial;
+    (void)surface;
+    (void)keys;
+
+    /* NOTE: I should ignore these for the moment */
+
+    // uint32_t *key;
+    // wl_array_for_each(key, keys) {
+    //     char buf[128];
+    //     xkb_keysym_t sym = xkb_state_key_get_one_sym(state->xkb_state,
+    //                                                  *key + 8);
+    //     xkb_keysym_get_name(sym, buf, sizeof(buf));
+    //     fprintf(stderr, "sym: %-12s (%d), ", buf, sym);
+    //     xkb_state_key_get_utf8(state->xkb_state, *key + 8, buf, sizeof(buf));
+    //     fprintf(stderr, "utf8:  '%s'\n", buf);
+    // }
+}
+static void wl_keyboard_leave(void *data, struct wl_keyboard *wl_keyboard,
+                              uint32_t serial, struct wl_surface *surface)
+{
+    (void)data;
+    (void)wl_keyboard;
+    (void)serial;
+    (void)surface;
+}
+
+static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard,
+                            uint32_t serial, uint32_t time, uint32_t key,
+                            uint32_t key_state)
+{
+    (void)wl_keyboard;
+    (void)serial;
+    (void)time;
+    (void)key_state;
+
+    IFOR_state *state = data;
+    uint32_t keycode = key + 8;
+    xkb_keysym_t sym = xkb_state_key_get_one_sym(state->xkb_state, keycode);
+    if (sym == XKB_KEY_Escape) {
+        state->quit = 1;
+    } else {
+        char buf[128];
+        xkb_keysym_get_name(sym, buf, sizeof(buf));
+        const char *action = WL_KEYBOARD_KEY_STATE_PRESSED ? "pressed"
+                                                           : "released";
+        fprintf(stderr, "key %s: sym: %-12s (%d), ", action, buf, sym);
+        xkb_keysym_to_utf8(sym, buf, sizeof(buf));
+        fprintf(stderr, "utf8: '%s'\n", buf);
+    }
+}
+static void wl_keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard,
+                                  uint32_t serial, uint32_t mods_depressed,
+                                  uint32_t mods_latched, uint32_t mods_locked,
+                                  uint32_t group)
+{
+    (void)wl_keyboard;
+    (void)serial;
+    IFOR_state *state = data;
+    xkb_state_update_mask(state->xkb_state, mods_depressed, mods_latched,
+                          mods_locked, 0, 0, group);
+}
+static void wl_keyboard_repeat_info(void *data, struct wl_keyboard *wl_keyboard,
+                                    int32_t rate, int32_t delay)
+{
+    (void)data;
+    (void)wl_keyboard;
+    (void)rate;
+    (void)delay;
+    /* TODO: repeating text input and keyboard shortcuts? timing? */
+}
+
+static const struct wl_keyboard_listener wl_keyboard_listener = {
+    .keymap = wl_keyboard_keymap,
+    .enter = wl_keyboard_enter,
+    .leave = wl_keyboard_leave,
+    .key = wl_keyboard_key,
+    .modifiers = wl_keyboard_modifiers,
+    .repeat_info = wl_keyboard_repeat_info,
+};
+
+static void wl_seat_name(void *data, struct wl_seat *wl_seat, const char *name)
+{
+    (void)data;
+    (void)wl_seat;
+    (void)name;
+    /* TODO: log */
+}
+
+static void wl_seat_capabilities(void *data, struct wl_seat *wl_seat,
+                                 uint32_t capabilities)
+{
+    IFOR_state *state = data;
+    int have_keyboard = capabilities & WL_SEAT_CAPABILITY_KEYBOARD;
+
+    if (have_keyboard && state->keyboard == NULL) {
+        state->keyboard = wl_seat_get_keyboard(wl_seat);
+        wl_keyboard_add_listener(state->keyboard, &wl_keyboard_listener, state);
+    } else if (!have_keyboard && state->keyboard) {
+        wl_keyboard_release(state->keyboard);
+        state->keyboard = NULL;
+    }
+}
+
+static const struct wl_seat_listener wl_seat_listener = {
+    .capabilities = wl_seat_capabilities,
+    .name = wl_seat_name,
+};
+
 static void registry_global(void *data, struct wl_registry *wl_registry,
                             uint32_t name, const char *interface,
                             uint32_t version)
@@ -56,6 +199,10 @@ static void registry_global(void *data, struct wl_registry *wl_registry,
     } else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
         state->layer_shell = wl_registry_bind(
             wl_registry, name, &zwlr_layer_shell_v1_interface, 4);
+    } else if (strcmp(interface, wl_seat_interface.name) == 0) {
+        state->seat = wl_registry_bind(wl_registry, name, &wl_seat_interface,
+                                       7);
+        wl_seat_add_listener(state->seat, &wl_seat_listener, state);
     }
 }
 
@@ -82,6 +229,8 @@ int wayland_init(IFOR_state *state)
     }
 
     state->registry = wl_display_get_registry(state->display);
+    state->xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+
     wl_registry_add_listener(state->registry, &registry_listener, state);
     wl_display_roundtrip(state->display);
 
@@ -136,8 +285,8 @@ int wayland_init(IFOR_state *state)
                                    state->surface_height);
 
     zwlr_layer_surface_v1_set_keyboard_interactivity(
-        state->layer_surface, /* Until I implement the quit shortcut */
-        ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_ON_DEMAND);
+        state->layer_surface,
+        ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE);
 
     state->egl_window = wl_egl_window_create(
         state->surface, state->surface_width, state->surface_height);
@@ -160,7 +309,8 @@ int wayland_init(IFOR_state *state)
     // struct wl_callback *callback = wl_surface_frame(state.surface);
     // wl_callback_add_listener(callback, &surface_frame_listener, &state);
 
-    while (wl_display_dispatch(state->display)) {
+    while (!state->quit) {
+        wl_display_dispatch(state->display);
     }
 
     return 1;
@@ -177,6 +327,12 @@ void wayland_cleanup(IFOR_state *state)
     zwlr_layer_surface_v1_destroy(state->layer_surface);
     zwlr_layer_shell_v1_destroy(state->layer_shell);
 
+    xkb_keymap_unref(state->xkb_keymap);
+    xkb_context_unref(state->xkb_context);
+    xkb_state_unref(state->xkb_state);
+
+    wl_keyboard_destroy(state->keyboard);
+    wl_seat_destroy(state->seat);
     wl_surface_destroy(state->surface);
     wl_compositor_destroy(state->compositor);
     wl_registry_destroy(state->registry);

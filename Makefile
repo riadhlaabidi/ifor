@@ -4,10 +4,10 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pedantic -std=c99
 PKG_CONFIG = pkg-config
 
-PACKAGES = wayland-client freetype2 wayland-egl egl glesv2
+PKGS = wayland-client freetype2 wayland-egl egl glesv2 xkbcommon
 
-PKGS_CFLAGS = $(shell $(PKG_CONFIG) --cflags $(PACKAGES))
-PKGS_LDFLAGS = $(shell $(PKG_CONFIG) --libs $(PACKAGES))
+PKGS_CFLAGS = $(shell $(PKG_CONFIG) --cflags $(PKGS))
+PKGS_LDFLAGS = $(shell $(PKG_CONFIG) --libs $(PKGS))
 
 SRC_DIR = src
 BUILD_DIR = build

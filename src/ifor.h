@@ -4,6 +4,7 @@
 #include <EGL/egl.h>
 #include <stdint.h>
 #include <wayland-client.h>
+#include <xkbcommon/xkbcommon.h>
 
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
@@ -12,9 +13,16 @@ typedef struct {
     struct wl_registry *registry;
     struct wl_compositor *compositor;
     struct wl_surface *surface;
+    struct wl_seat *seat;
+    struct wl_keyboard *keyboard;
 
     struct zwlr_layer_shell_v1 *layer_shell;
     struct zwlr_layer_surface_v1 *layer_surface;
+
+    // xkb
+    struct xkb_state *xkb_state;
+    struct xkb_context *xkb_context;
+    struct xkb_keymap *xkb_keymap;
 
     struct egl_dispay *egl_display;
     struct wl_egl_window *egl_window;
@@ -24,6 +32,8 @@ typedef struct {
     int32_t surface_width;
     int32_t surface_height;
     // uint32_t last_frame;
+
+    int quit;
 } IFOR_state;
 
 #endif /* end of include guard: IFOR_IFOR_H */

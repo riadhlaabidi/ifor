@@ -6,8 +6,11 @@
 #include "renderer.h"
 
 GLuint program;
-GLuint vbo;
+GLuint vbo_triangles;
+GLuint vbo_colors;
 GLint attribute_coord2d;
+GLint attribute_v_color;
+GLint uniform_fade;
 
 static void log_program_info(GLuint prg)
 {
@@ -67,13 +70,17 @@ int gl_init(void)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     /* VBO */
-    GLfloat triangle_vertices[] = {0.0, 0.8, -0.8, -0.8, 0.8, -0.8};
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    GLfloat triangle_vertices[] = {1, 1, -1, 1, -1, -1};
+    glGenBuffers(1, &vbo_triangles);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_triangles);
     glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), triangle_vertices,
                  GL_DYNAMIC_DRAW);
 
-    GLint link = GL_FALSE;
+    GLfloat triangle_colors[] = {1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0};
+    glGenBuffers(1, &vbo_colors);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_colors);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_colors), triangle_colors,
+                 GL_STATIC_DRAW);
 
     GLuint vs = create_shader(vertex_shader_path, GL_VERTEX_SHADER);
     GLuint fs = create_shader(fragment_shader_path, GL_FRAGMENT_SHADER);
@@ -81,6 +88,7 @@ int gl_init(void)
         return 0;
     }
 
+    GLint link = GL_FALSE;
     program = glCreateProgram();
     glAttachShader(program, vs);
     glAttachShader(program, fs);
@@ -102,6 +110,23 @@ int gl_init(void)
         return 0;
     }
 
+    attribute_name = "v_color";
+    attribute_v_color = glGetAttribLocation(program, attribute_name);
+
+    if (attribute_v_color == -1) {
+        fprintf(stderr, "Could not bind attribute \"%s\" in program\n",
+                attribute_name);
+        return 0;
+    }
+
+    const char *uniform_name = "fade";
+    uniform_fade = glGetUniformLocation(program, uniform_name);
+    if (uniform_fade == -1) {
+        fprintf(stderr, "Could not bind uniform \"%s\" in program\n",
+                uniform_name);
+        return 0;
+    }
+
     return 1;
 }
 
@@ -110,16 +135,25 @@ void render(IFOR_state *state)
     glClearColor(0.1, 0.1, 0.1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
     glUseProgram(program);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_triangles);
     glEnableVertexAttribArray(attribute_coord2d);
     glVertexAttribPointer(attribute_coord2d, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glEnableVertexAttribArray(attribute_v_color);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_colors);
+    glVertexAttribPointer(attribute_v_color, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glDisableVertexAttribArray(attribute_coord2d);
+    glDisableVertexAttribArray(attribute_v_color);
+
+    glUniform1f(uniform_fade, 1.0);
+
     eglSwapBuffers(state->egl_display, state->egl_surface);
 }
 
 void gl_cleanup(void)
 {
     glDeleteProgram(program);
-    glDeleteBuffers(1, &vbo);
+    glDeleteBuffers(1, &vbo_triangles);
 }

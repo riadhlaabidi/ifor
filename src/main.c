@@ -9,6 +9,7 @@ int main(void)
     IFOR_state state = {0};
     state.surface_width = 900;
     state.surface_height = 400;
+    state.quit = 0;
 
     if (!freetype_init()) {
         return EXIT_FAILURE;
