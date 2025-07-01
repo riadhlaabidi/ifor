@@ -1,16 +1,10 @@
-#include <GLES2/gl2.h>
+#include <GLES3/gl3.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "common.h"
 #include "renderer.h"
-
-GLuint program;
-GLuint vbo_triangles;
-GLuint vbo_colors;
-GLint attribute_coord2d;
-GLint attribute_v_color;
-GLint uniform_fade;
 
 static void log_program_info(GLuint prg)
 {
@@ -63,97 +57,96 @@ defer:
     return shader;
 }
 
-int gl_init(void)
+int renderer_init(Renderer *renderer)
 {
-    /* Enable alpha */
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    /* VBO */
-    GLfloat triangle_vertices[] = {1, 1, -1, 1, -1, -1};
-    glGenBuffers(1, &vbo_triangles);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_triangles);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), triangle_vertices,
-                 GL_DYNAMIC_DRAW);
+    glGenBuffers(1, &renderer->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(renderer->vertices),
+                 renderer->vertices, GL_DYNAMIC_DRAW);
 
-    GLfloat triangle_colors[] = {1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0};
-    glGenBuffers(1, &vbo_colors);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_colors);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_colors), triangle_colors,
-                 GL_STATIC_DRAW);
+    // coord2d
+    glEnableVertexAttribArray(VERTEX_ATTRIBUTE_COORD2D);
+    glVertexAttribPointer(VERTEX_ATTRIBUTE_COORD2D, 2, GL_FLOAT, GL_FALSE,
+                          sizeof(Vertex), (GLvoid *)offsetof(Vertex, coord));
+
+    // color
+    glEnableVertexAttribArray(VERTEX_ATTRIBUTE_COLOR);
+    glVertexAttribPointer(VERTEX_ATTRIBUTE_COLOR, 4, GL_FLOAT, GL_FALSE,
+                          sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
+
+    // texture coord
+    glEnableVertexAttribArray(VERTEX_ATTRIBUTE_TEXTURE_COORD);
+    glVertexAttribPointer(VERTEX_ATTRIBUTE_TEXTURE_COORD, 2, GL_FLOAT, GL_FALSE,
+                          sizeof(Vertex),
+                          (GLvoid *)offsetof(Vertex, texture_coord));
+
+    // renderer->vertices[renderer->vertices_count++] =
+    //     (Vertex){.coord = vec2f(-1, 1), .color = vec4fu(1.0)};
+    // renderer->vertices[renderer->vertices_count++] =
+    //     (Vertex){.coord = vec2f(-1, 0), .color = vec4fu(1.0)};
+    // renderer->vertices[renderer->vertices_count++] =
+    //     (Vertex){.coord = vec2f(0, 0), .color = vec4fu(1.0)};
 
     GLuint vs = create_shader(vertex_shader_path, GL_VERTEX_SHADER);
     GLuint fs = create_shader(fragment_shader_path, GL_FRAGMENT_SHADER);
-    if (!vs || !fs) {
+    GLuint text_fs = create_shader(text_fragment_shader_path,
+                                   GL_FRAGMENT_SHADER);
+
+    if (!vs || !fs || !text_fs) {
         return 0;
     }
 
     GLint link = GL_FALSE;
-    program = glCreateProgram();
-    glAttachShader(program, vs);
-    glAttachShader(program, fs);
-    glLinkProgram(program);
-    glGetProgramiv(program, GL_LINK_STATUS, &link);
+    renderer->programs[0] = glCreateProgram();
+    glAttachShader(renderer->programs[0], vs);
+    glAttachShader(renderer->programs[0], fs);
+    glLinkProgram(renderer->programs[0]);
+    glGetProgramiv(renderer->programs[0], GL_LINK_STATUS, &link);
 
     if (!link) {
         fprintf(stderr, "Error in program linking.\n");
-        log_program_info(program);
+        log_program_info(renderer->programs[0]);
         return 0;
     }
 
-    const char *attribute_name = "coord2d";
-    attribute_coord2d = glGetAttribLocation(program, attribute_name);
+    renderer->programs[1] = glCreateProgram();
+    glAttachShader(renderer->programs[1], vs);
+    glAttachShader(renderer->programs[1], text_fs);
+    glLinkProgram(renderer->programs[1]);
+    glGetProgramiv(renderer->programs[1], GL_LINK_STATUS, &link);
 
-    if (attribute_coord2d == -1) {
-        fprintf(stderr, "Could not bind attribute \"%s\" in program\n",
-                attribute_name);
-        return 0;
-    }
-
-    attribute_name = "v_color";
-    attribute_v_color = glGetAttribLocation(program, attribute_name);
-
-    if (attribute_v_color == -1) {
-        fprintf(stderr, "Could not bind attribute \"%s\" in program\n",
-                attribute_name);
-        return 0;
-    }
-
-    const char *uniform_name = "fade";
-    uniform_fade = glGetUniformLocation(program, uniform_name);
-    if (uniform_fade == -1) {
-        fprintf(stderr, "Could not bind uniform \"%s\" in program\n",
-                uniform_name);
+    if (!link) {
+        fprintf(stderr, "Error in program linking.\n");
+        log_program_info(renderer->programs[1]);
         return 0;
     }
 
     return 1;
 }
 
-void render(IFOR_state *state)
+void render(Renderer *renderer)
 {
     glClearColor(0.1, 0.1, 0.1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
-    glUseProgram(program);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_triangles);
-    glEnableVertexAttribArray(attribute_coord2d);
-    glVertexAttribPointer(attribute_coord2d, 2, GL_FLOAT, GL_FALSE, 0, 0);
-
-    glEnableVertexAttribArray(attribute_v_color);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_colors);
-    glVertexAttribPointer(attribute_v_color, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glDisableVertexAttribArray(attribute_coord2d);
-    glDisableVertexAttribArray(attribute_v_color);
-
-    glUniform1f(uniform_fade, 1.0);
-
-    eglSwapBuffers(state->egl_display, state->egl_surface);
+    glUseProgram(renderer->programs[0]);
+    glLineWidth(1);
+    glBufferSubData(GL_ARRAY_BUFFER, 0,
+                    renderer->vertices_count * sizeof(Vertex),
+                    renderer->vertices);
+    glDrawArrays(GL_TRIANGLES, 0, renderer->vertices_count);
+    renderer->vertices_count = 0;
 }
 
-void gl_cleanup(void)
+void renderer_cleanup(Renderer *renderer)
 {
-    glDeleteProgram(program);
-    glDeleteBuffers(1, &vbo_triangles);
+    glDisableVertexAttribArray(VERTEX_ATTRIBUTE_COORD2D);
+    glDisableVertexAttribArray(VERTEX_ATTRIBUTE_COLOR);
+    glDisableVertexAttribArray(VERTEX_ATTRIBUTE_TEXTURE_COORD);
+
+    glDeleteProgram(renderer->programs[0]);
+    glDeleteProgram(renderer->programs[1]);
+    glDeleteBuffers(1, &renderer->vbo);
 }

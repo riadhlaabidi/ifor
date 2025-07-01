@@ -1,5 +1,5 @@
 #include <EGL/egl.h>
-#include <GLES2/gl2.h>
+#include <GLES3/gl3.h>
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -9,7 +9,6 @@
 #include <xkbcommon/xkbcommon.h>
 
 #include "ifor.h"
-#include "renderer.h"
 #include "wayland.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
@@ -26,7 +25,8 @@ static void layer_surface_configure(void *data,
     if (width && height) {
         wl_egl_window_resize(state->egl_window, width, height, 0, 0);
     }
-    render(state);
+    render(state->renderer);
+    eglSwapBuffers(state->egl_display, state->egl_surface);
 }
 
 static void layer_surface_closed(void *data,
@@ -119,13 +119,13 @@ static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard,
     if (sym == XKB_KEY_Escape) {
         state->quit = 1;
     } else {
-        char buf[128];
-        xkb_keysym_get_name(sym, buf, sizeof(buf));
-        const char *action = WL_KEYBOARD_KEY_STATE_PRESSED ? "pressed"
-                                                           : "released";
-        fprintf(stderr, "key %s: sym: %-12s (%d), ", action, buf, sym);
-        xkb_keysym_to_utf8(sym, buf, sizeof(buf));
-        fprintf(stderr, "utf8: '%s'\n", buf);
+        // char buf[128];
+        // xkb_keysym_get_name(sym, buf, sizeof(buf));
+        // const char *action = WL_KEYBOARD_KEY_STATE_PRESSED ? "pressed"
+        //                                                    : "released";
+        // fprintf(stderr, "key %s: sym: %-12s (%d), ", action, buf, sym);
+        // xkb_keysym_to_utf8(sym, buf, sizeof(buf));
+        // fprintf(stderr, "utf8: '%s'\n", buf);
     }
 }
 static void wl_keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard,
@@ -219,7 +219,7 @@ static const struct wl_registry_listener registry_listener = {
     .global_remove = registry_global_remove,
 };
 
-int wayland_init(IFOR_state *state)
+int wayland_init(Renderer *renderer, IFOR_state *state)
 {
     state->display = wl_display_connect(NULL);
 
@@ -248,7 +248,7 @@ int wayland_init(IFOR_state *state)
 
     EGLint config_attribs[] = {
         EGL_RENDERABLE_TYPE,
-        EGL_OPENGL_ES2_BIT,
+        EGL_OPENGL_ES3_BIT,
         EGL_SURFACE_TYPE,
         EGL_WINDOW_BIT,
         EGL_RED_SIZE,
@@ -269,6 +269,10 @@ int wayland_init(IFOR_state *state)
 
     EGLint context_attribs[] = {
         EGL_CONTEXT_CLIENT_VERSION,
+        3,
+        EGL_CONTEXT_MAJOR_VERSION,
+        3,
+        EGL_CONTEXT_MINOR_VERSION,
         2,
         EGL_NONE,
     };
@@ -277,7 +281,8 @@ int wayland_init(IFOR_state *state)
 
     state->surface = wl_compositor_create_surface(state->compositor);
     state->layer_surface = zwlr_layer_shell_v1_get_layer_surface(
-        state->layer_shell, state->surface, NULL, 3, "Ifor launcher");
+        state->layer_shell, state->surface, NULL, 3,
+        "Ifor application launcher");
 
     zwlr_layer_surface_v1_add_listener(state->layer_surface,
                                        &layer_surface_listener, state);
@@ -300,7 +305,7 @@ int wayland_init(IFOR_state *state)
         return 0;
     }
 
-    if (!gl_init()) {
+    if (!renderer_init(renderer)) {
         return 0;
     }
 
@@ -318,7 +323,6 @@ int wayland_init(IFOR_state *state)
 
 void wayland_cleanup(IFOR_state *state)
 {
-    gl_cleanup();
     eglDestroySurface(state->egl_display, state->egl_surface);
     eglDestroyContext(state->egl_display, state->egl_context);
     wl_egl_window_destroy(state->egl_window);

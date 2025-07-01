@@ -6,6 +6,7 @@
 #include <wayland-client.h>
 #include <xkbcommon/xkbcommon.h>
 
+#include "renderer.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
 typedef struct {
@@ -32,6 +33,8 @@ typedef struct {
     int32_t surface_width;
     int32_t surface_height;
     // uint32_t last_frame;
+
+    Renderer *renderer;
 
     int quit;
 } IFOR_state;
