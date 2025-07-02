@@ -8,7 +8,6 @@
 #include <wayland-egl.h>
 #include <xkbcommon/xkbcommon.h>
 
-#include "ifor.h"
 #include "wayland.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
@@ -219,21 +218,8 @@ static const struct wl_registry_listener registry_listener = {
     .global_remove = registry_global_remove,
 };
 
-int wayland_init(Renderer *renderer, IFOR_state *state)
+static int wayland_egl_init(IFOR_state *state)
 {
-    state->display = wl_display_connect(NULL);
-
-    if (!state->display) {
-        fprintf(stderr, "Failed to connect to wayland display.\n");
-        return 0;
-    }
-
-    state->registry = wl_display_get_registry(state->display);
-    state->xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-
-    wl_registry_add_listener(state->registry, &registry_listener, state);
-    wl_display_roundtrip(state->display);
-
     state->egl_display = eglGetDisplay(state->display);
 
     if (!eglInitialize(state->egl_display, NULL, NULL)) {
@@ -279,6 +265,36 @@ int wayland_init(Renderer *renderer, IFOR_state *state)
     state->egl_context = eglCreateContext(state->egl_display, config,
                                           EGL_NO_CONTEXT, context_attribs);
 
+    state->egl_window = wl_egl_window_create(
+        state->surface, state->surface_width, state->surface_height);
+    state->egl_surface =
+        eglCreateWindowSurface(state->egl_display, config,
+                               (EGLNativeWindowType)state->egl_window, NULL);
+
+    if (!eglMakeCurrent(state->egl_display, state->egl_surface,
+                        state->egl_surface, state->egl_context)) {
+        fprintf(stderr, "Failed to make egl context current\n");
+        return 0;
+    }
+
+    return 1;
+}
+
+int wayland_init(IFOR_state *state)
+{
+    state->display = wl_display_connect(NULL);
+
+    if (!state->display) {
+        fprintf(stderr, "Failed to connect to wayland display.\n");
+        return 0;
+    }
+
+    state->registry = wl_display_get_registry(state->display);
+    state->xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+
+    wl_registry_add_listener(state->registry, &registry_listener, state);
+    wl_display_roundtrip(state->display);
+
     state->surface = wl_compositor_create_surface(state->compositor);
     state->layer_surface = zwlr_layer_shell_v1_get_layer_surface(
         state->layer_shell, state->surface, NULL, 3,
@@ -293,19 +309,11 @@ int wayland_init(Renderer *renderer, IFOR_state *state)
         state->layer_surface,
         ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE);
 
-    state->egl_window = wl_egl_window_create(
-        state->surface, state->surface_width, state->surface_height);
-    state->egl_surface =
-        eglCreateWindowSurface(state->egl_display, config,
-                               (EGLNativeWindowType)state->egl_window, NULL);
-
-    if (!eglMakeCurrent(state->egl_display, state->egl_surface,
-                        state->egl_surface, state->egl_context)) {
-        fprintf(stderr, "Failed to make egl context current\n");
+    if (!wayland_egl_init(state)) {
         return 0;
     }
 
-    if (!renderer_init(renderer)) {
+    if (!renderer_init(state->renderer)) {
         return 0;
     }
 
@@ -314,11 +322,14 @@ int wayland_init(Renderer *renderer, IFOR_state *state)
     // struct wl_callback *callback = wl_surface_frame(state.surface);
     // wl_callback_add_listener(callback, &surface_frame_listener, &state);
 
-    while (!state->quit) {
-        wl_display_dispatch(state->display);
-    }
-
     return 1;
+}
+
+void wayland_main_loop(IFOR_state *state)
+{
+
+    while (!state->quit && wl_display_dispatch(state->display)) {
+    }
 }
 
 void wayland_cleanup(IFOR_state *state)

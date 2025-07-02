@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "font.h"
@@ -9,11 +8,13 @@
 
 int main(void)
 {
-    Renderer renderer = {0};
     IFOR_state state = {0};
-    state.renderer = &renderer;
-    state.surface_width = 900;
-    state.surface_height = 400;
+    Renderer renderer = {0};
+    init_state(&state, &renderer, 900, 400);
+
+    if (!wayland_init(&state)) {
+        return EXIT_FAILURE;
+    }
 
     FT_Library library;
     FT_Face face;
@@ -22,13 +23,7 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    // if (!renderer_init(state.renderer)) {
-    //     return EXIT_FAILURE;
-    // }
-
-    if (!wayland_init(state.renderer, &state)) {
-        return EXIT_FAILURE;
-    }
+    wayland_main_loop(&state);
 
     wayland_cleanup(&state);
     renderer_cleanup(state.renderer);

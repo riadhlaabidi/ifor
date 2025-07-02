@@ -1,10 +1,14 @@
 #include <GLES3/gl3.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "common.h"
 #include "renderer.h"
+
+const char *shader_file_paths[SHADERS_COUNT] = {
+    [COLOR_SHADER] = "./shaders/fragment.glsl",
+    [TEXT_SHADER] = "./shaders/text-fragment.glsl",
+};
 
 static void log_program_info(GLuint prg)
 {
@@ -83,47 +87,35 @@ int renderer_init(Renderer *renderer)
                           sizeof(Vertex),
                           (GLvoid *)offsetof(Vertex, texture_coord));
 
-    // renderer->vertices[renderer->vertices_count++] =
-    //     (Vertex){.coord = vec2f(-1, 1), .color = vec4fu(1.0)};
-    // renderer->vertices[renderer->vertices_count++] =
-    //     (Vertex){.coord = vec2f(-1, 0), .color = vec4fu(1.0)};
-    // renderer->vertices[renderer->vertices_count++] =
-    //     (Vertex){.coord = vec2f(0, 0), .color = vec4fu(1.0)};
-
-    GLuint vs = create_shader(vertex_shader_path, GL_VERTEX_SHADER);
-    GLuint fs = create_shader(fragment_shader_path, GL_FRAGMENT_SHADER);
-    GLuint text_fs = create_shader(text_fragment_shader_path,
-                                   GL_FRAGMENT_SHADER);
-
-    if (!vs || !fs || !text_fs) {
+    GLuint vs = create_shader(vertex_shader_file_path, GL_VERTEX_SHADER);
+    if (!vs) {
         return 0;
     }
 
-    GLint link = GL_FALSE;
-    renderer->programs[0] = glCreateProgram();
-    glAttachShader(renderer->programs[0], vs);
-    glAttachShader(renderer->programs[0], fs);
-    glLinkProgram(renderer->programs[0]);
-    glGetProgramiv(renderer->programs[0], GL_LINK_STATUS, &link);
+    for (int i = 0; i < SHADERS_COUNT; i++) {
+        GLuint fs = create_shader(shader_file_paths[i], GL_FRAGMENT_SHADER);
 
-    if (!link) {
-        fprintf(stderr, "Error in program linking.\n");
-        log_program_info(renderer->programs[0]);
-        return 0;
+        if (!fs) {
+            return 0;
+        }
+
+        GLint link = GL_FALSE;
+        renderer->programs[i] = glCreateProgram();
+        glAttachShader(renderer->programs[i], vs);
+        glAttachShader(renderer->programs[i], fs);
+        glLinkProgram(renderer->programs[i]);
+        glGetProgramiv(renderer->programs[i], GL_LINK_STATUS, &link);
+
+        if (!link) {
+            fprintf(stderr, "Error in program linking.\n");
+            log_program_info(renderer->programs[i]);
+            return 0;
+        }
+
+        glDeleteShader(fs);
     }
 
-    renderer->programs[1] = glCreateProgram();
-    glAttachShader(renderer->programs[1], vs);
-    glAttachShader(renderer->programs[1], text_fs);
-    glLinkProgram(renderer->programs[1]);
-    glGetProgramiv(renderer->programs[1], GL_LINK_STATUS, &link);
-
-    if (!link) {
-        fprintf(stderr, "Error in program linking.\n");
-        log_program_info(renderer->programs[1]);
-        return 0;
-    }
-
+    glDeleteShader(vs);
     return 1;
 }
 
@@ -131,8 +123,7 @@ void render(Renderer *renderer)
 {
     glClearColor(0.1, 0.1, 0.1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
-    glUseProgram(renderer->programs[0]);
-    glLineWidth(1);
+    glUseProgram(renderer->programs[COLOR_SHADER]);
     glBufferSubData(GL_ARRAY_BUFFER, 0,
                     renderer->vertices_count * sizeof(Vertex),
                     renderer->vertices);
@@ -146,7 +137,9 @@ void renderer_cleanup(Renderer *renderer)
     glDisableVertexAttribArray(VERTEX_ATTRIBUTE_COLOR);
     glDisableVertexAttribArray(VERTEX_ATTRIBUTE_TEXTURE_COORD);
 
-    glDeleteProgram(renderer->programs[0]);
-    glDeleteProgram(renderer->programs[1]);
+    for (int i = 0; i < SHADERS_COUNT; i++) {
+        glDeleteProgram(renderer->programs[i]);
+    }
+
     glDeleteBuffers(1, &renderer->vbo);
 }

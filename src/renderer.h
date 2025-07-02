@@ -2,13 +2,17 @@
 #define IFOR_RENDERER_H
 
 #include <GLES3/gl3.h>
-#include <stddef.h>
+#include <stdlib.h>
 
 #include "la.h"
 
-#define vertex_shader_path "./shaders/vertex.glsl"
-#define fragment_shader_path "./shaders/fragment.glsl"
-#define text_fragment_shader_path "./shaders/text-fragment.glsl"
+#define vertex_shader_file_path "./shaders/vertex.glsl"
+
+typedef enum {
+    COLOR_SHADER = 0,
+    TEXT_SHADER,
+    SHADERS_COUNT,
+} Shader;
 
 typedef struct {
     Vec2f coord;
@@ -17,7 +21,7 @@ typedef struct {
 } Vertex;
 
 typedef struct {
-    GLuint programs[2];
+    GLuint programs[SHADERS_COUNT];
     GLuint vbo;
 
     GLint uniforms[1];

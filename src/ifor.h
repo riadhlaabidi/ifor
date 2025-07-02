@@ -30,13 +30,16 @@ typedef struct {
     struct EGLSurface *egl_surface;
     struct EGLContext *egl_context;
 
-    int32_t surface_width;
-    int32_t surface_height;
+    uint32_t surface_width;
+    uint32_t surface_height;
     // uint32_t last_frame;
 
     Renderer *renderer;
 
     int quit;
 } IFOR_state;
+
+void init_state(IFOR_state *state, Renderer *rederer, uint32_t w_width,
+                uint32_t w_height);
 
 #endif /* end of include guard: IFOR_IFOR_H */
