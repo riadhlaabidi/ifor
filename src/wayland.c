@@ -8,6 +8,7 @@
 #include <wayland-egl.h>
 #include <xkbcommon/xkbcommon.h>
 
+#include "renderer.h"
 #include "wayland.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
@@ -16,16 +17,17 @@ static void layer_surface_configure(void *data,
                                     uint32_t serial, uint32_t width,
                                     uint32_t height)
 {
-    (void)width;
-    (void)height;
-
     IFOR_state *state = data;
+    if (state->surface_configured) {
+        return;
+    }
     zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
     if (width && height) {
         wl_egl_window_resize(state->egl_window, width, height, 0, 0);
     }
-    render(state->renderer);
+    render(state);
     eglSwapBuffers(state->egl_display, state->egl_surface);
+    state->surface_configured = 1;
 }
 
 static void layer_surface_closed(void *data,
@@ -318,7 +320,6 @@ int wayland_init(IFOR_state *state)
     }
 
     wl_surface_commit(state->surface);
-
     // struct wl_callback *callback = wl_surface_frame(state.surface);
     // wl_callback_add_listener(callback, &surface_frame_listener, &state);
 

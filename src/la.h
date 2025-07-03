@@ -7,6 +7,7 @@ typedef struct {
 } Vec2f;
 
 Vec2f vec2f(float x, float y);
+Vec2f vec2f_add(Vec2f v1, Vec2f v2);
 
 typedef struct {
     float x;

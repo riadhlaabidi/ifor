@@ -1,8 +1,70 @@
 #include <GLES3/gl3.h>
+#include <stddef.h>
 #include <stdio.h>
 
 #include "config.h"
 #include "font.h"
+#include "freetype/freetype.h"
+#include "la.h"
+#include "renderer.h"
+
+int freetype_create_texture_atlas(Atlas *atlas, FT_Face face)
+{
+
+    for (int i = 32; i < 128; i++) {
+        if (FT_Load_Char(face, i, FT_LOAD_RENDER)) {
+            fprintf(stderr, "[FreeType] Error loading character \'%c\'\n", i);
+            return 0;
+        }
+
+        atlas->width += face->glyph->bitmap.width;
+        if (face->glyph->bitmap.rows > atlas->height) {
+            atlas->height = face->glyph->bitmap.rows;
+        }
+    }
+
+    GLuint texture;
+    glActiveTexture(GL_TEXTURE0);
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    // Create an empty texture for the atlas
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlas->width, atlas->height, 0,
+                 GL_RED, GL_UNSIGNED_BYTE, NULL);
+
+    int x = 0;
+    for (int i = 32; i < 128; i++) {
+        if (FT_Load_Char(face, i, FT_LOAD_RENDER)) {
+            fprintf(stderr, "[FreeType] Error loading character \'%c\'\n", i);
+            return 0;
+        }
+
+        atlas->metrics[i].ax = face->glyph->advance.x >> 6;
+        atlas->metrics[i].ay = face->glyph->advance.y >> 6;
+        atlas->metrics[i].bw = face->glyph->bitmap.width;
+        atlas->metrics[i].bh = face->glyph->bitmap.rows;
+        atlas->metrics[i].bl = face->glyph->bitmap_left;
+        atlas->metrics[i].bt = face->glyph->bitmap_top;
+        atlas->metrics[i].tx = (float)x / (float)atlas->width;
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, x, 0, face->glyph->bitmap.width,
+                        face->glyph->bitmap.rows, GL_RED, GL_UNSIGNED_BYTE,
+                        face->glyph->bitmap.buffer);
+
+        x += face->glyph->bitmap.width;
+    }
+
+    return 1;
+}
 
 int freetype_init(FT_Library *library, FT_Face *face)
 {
@@ -20,63 +82,31 @@ int freetype_init(FT_Library *library, FT_Face *face)
         return 0;
     }
 
-    GLuint texture;
-    glActiveTexture(GL_TEXTURE0);
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    // glUniform1f(uniform_texture, 0); // TODO: move that to render_text
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
     return 1;
 }
 
-// static void draw_bitmap(uint32_t *data, int width, FT_Bitmap *bitmap, int x,
-//                         int y)
-// {
-//     for (unsigned int r = 0; r < bitmap->rows; r++) {
-//         for (unsigned int c = 0; c < bitmap->width; c++) {
-//             int px = x + c;
-//             int py = y + r;
-//
-//             if (px < 0 || py < 0 || px >= width)
-//                 continue;
-//
-//             uint8_t value = bitmap->buffer[r * bitmap->pitch + c];
-//             if (value == 0)
-//                 continue;
-//             uint32_t alpha = value;
-//             uint32_t color = (alpha << 24) | 0xFFFFFF;
-//             data[py * width + px] = color;
-//         }
-//     }
-// }
+void freetype_render_text(Atlas *atlas, Renderer *renderer, const char *text,
+                          size_t text_size, Vec2f position, Vec4f color)
+{
+    // TODO: better solution for coordinates normalization
 
-// void freetype_render(uint32_t *data, int width, const char *string, int
-// length)
-// {
-//     int penx = 0;
-//     int peny = 100;
-//     for (int i = 0; i < length; i++) {
-//         if (FT_Load_Char(face, string[i], FT_LOAD_RENDER)) {
-//             fprintf(stderr, "[FreeType] Error loading char glyph '%c'\n",
-//                     string[i]);
-//             continue;
-//         }
-//
-//         // draw
-//         draw_bitmap(data, width, &face->glyph->bitmap,
-//                     penx + face->glyph->bitmap_left,
-//                     peny - face->glyph->bitmap_top);
-//
-//         penx += face->glyph->advance.x >> 6;
-//     }
-// }
-//
-// void freetype_cleanup(void) {}
+    float sx = 2.0 / 900;
+    float sy = 2.0 / 400;
+
+    for (size_t i = 0; i < text_size; i++) {
+        int glyph_index = text[i];
+        CharacterInfo chi = atlas->metrics[glyph_index];
+
+        float x2 = position.x + chi.bl * sx;
+        float y2 = -position.y - chi.bt * sy;
+        float w = chi.bw * sx;
+        float h = chi.bh * sy;
+
+        position.x += chi.ax * sx;
+        position.y += chi.ay * sy;
+
+        renderer_image_rectangle(
+            renderer, vec2f(x2, -y2), vec2f(w, -h), vec2f(chi.tx, 0.0f),
+            vec2f(chi.bw / atlas->width, chi.bh / atlas->height), color);
+    }
+}

@@ -23,6 +23,12 @@ int main(void)
         return EXIT_FAILURE;
     }
 
+    Atlas atlas = {0};
+    if (!freetype_create_texture_atlas(&atlas, face)) {
+        return EXIT_FAILURE;
+    }
+    state.atlas = &atlas;
+
     wayland_main_loop(&state);
 
     wayland_cleanup(&state);

@@ -25,7 +25,7 @@ typedef struct {
     GLuint vbo;
 
     GLint uniforms[1];
-    Vertex vertices[1000];
+    Vertex vertices[100000];
     size_t vertices_count;
 } Renderer;
 
@@ -36,7 +36,25 @@ typedef enum {
 } VertexAttribute;
 
 int renderer_init(Renderer *renderer);
-void render(Renderer *renderer);
+
+void renderer_image_rectangle(Renderer *renderer, Vec2f position, Vec2f size,
+                              Vec2f texture_position, Vec2f texture_size,
+                              Vec4f color);
+
+void renderer_quad(Renderer *renderer, Vec2f position1, Vec2f position2,
+                   Vec2f position3, Vec2f position4, Vec4f color1, Vec4f color2,
+                   Vec4f color3, Vec4f color4, Vec2f texture_position1,
+                   Vec2f texture_position2, Vec2f texture_position3,
+                   Vec2f texture_position4);
+
+void renderer_triangle(Renderer *renderer, Vec2f position0, Vec2f position1,
+                       Vec2f position2, Vec2f texture_position0,
+                       Vec2f texture_position1, Vec2f texture_position2,
+                       Vec4f color0, Vec4f color1, Vec4f color2);
+
+void renderer_vertex(Renderer *renderer, Vec2f position, Vec2f texture_position,
+                     Vec4f color);
+
 void renderer_cleanup(Renderer *renderer);
 
 #endif /* end of include guard: IFOR_RENDERER_H */

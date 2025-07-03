@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "common.h"
+#include "la.h"
 #include "renderer.h"
 
 const char *shader_file_paths[SHADERS_COUNT] = {
@@ -116,19 +117,59 @@ int renderer_init(Renderer *renderer)
     }
 
     glDeleteShader(vs);
+
+    GLint loc = glGetUniformLocation(renderer->programs[TEXT_SHADER],
+                                     "texture_image");
+    glUniform1i(loc, 0);
+
     return 1;
 }
 
-void render(Renderer *renderer)
+void renderer_vertex(Renderer *renderer, Vec2f position, Vec2f texture_position,
+                     Vec4f color)
 {
-    glClearColor(0.1, 0.1, 0.1, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glUseProgram(renderer->programs[COLOR_SHADER]);
-    glBufferSubData(GL_ARRAY_BUFFER, 0,
-                    renderer->vertices_count * sizeof(Vertex),
-                    renderer->vertices);
-    glDrawArrays(GL_TRIANGLES, 0, renderer->vertices_count);
-    renderer->vertices_count = 0;
+    Vertex *last = &renderer->vertices[renderer->vertices_count];
+    last->coord = position;
+    last->texture_coord = texture_position;
+    last->color = color;
+    renderer->vertices_count++;
+}
+
+void renderer_triangle(Renderer *renderer, Vec2f position0, Vec2f position1,
+                       Vec2f position2, Vec2f texture_position0,
+                       Vec2f texture_position1, Vec2f texture_position2,
+                       Vec4f color0, Vec4f color1, Vec4f color2)
+{
+    renderer_vertex(renderer, position0, texture_position0, color0);
+    renderer_vertex(renderer, position1, texture_position1, color1);
+    renderer_vertex(renderer, position2, texture_position2, color2);
+}
+
+void renderer_quad(Renderer *renderer, Vec2f position0, Vec2f position1,
+                   Vec2f position2, Vec2f position3, Vec4f color0, Vec4f color1,
+                   Vec4f color2, Vec4f color3, Vec2f texture_position0,
+                   Vec2f texture_position1, Vec2f texture_position2,
+                   Vec2f texture_position3)
+{
+    renderer_triangle(renderer, position0, position1, position2,
+                      texture_position0, texture_position1, texture_position2,
+                      color0, color1, color2);
+    renderer_triangle(renderer, position1, position2, position3,
+                      texture_position1, texture_position2, texture_position3,
+                      color1, color2, color3);
+}
+
+void renderer_image_rectangle(Renderer *renderer, Vec2f position, Vec2f size,
+                              Vec2f texture_position, Vec2f texture_size,
+                              Vec4f color)
+{
+    renderer_quad(renderer, position, vec2f_add(position, vec2f(size.x, 0)),
+                  vec2f_add(position, vec2f(0, size.y)),
+                  vec2f_add(position, size), color, color, color, color,
+                  texture_position,
+                  vec2f_add(texture_position, vec2f(texture_size.x, 0)),
+                  vec2f_add(texture_position, vec2f(0, texture_size.y)),
+                  vec2f_add(texture_position, texture_size));
 }
 
 void renderer_cleanup(Renderer *renderer)
