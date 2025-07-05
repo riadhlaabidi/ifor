@@ -18,9 +18,7 @@ void render(IFOR_state *state)
     glClearColor(0.1, 0.1, 0.1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
     glUseProgram(state->renderer->programs[TEXT_SHADER]);
-
-    Vec2f pos = vec2f(-1 + 8 * (2.0 / state->surface_width),
-                      1 - 50 * (2.0 / state->surface_height));
+    Vec2f pos = vec2f(0, (float)state->surface_height - state->atlas->height);
     freetype_render_text(state->atlas, state->renderer, "Hello world!", 12, pos,
                          vec4fu(1));
     glBufferSubData(GL_ARRAY_BUFFER, 0,

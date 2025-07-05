@@ -62,7 +62,7 @@ defer:
     return shader;
 }
 
-int renderer_init(Renderer *renderer)
+int renderer_init(Renderer *renderer, float w_width, float w_height)
 {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -93,6 +93,10 @@ int renderer_init(Renderer *renderer)
         return 0;
     }
 
+    float u_projection[16];
+    orthographic_matrix(0.0f, (float)w_width, 0.0f, (float)w_height, -1, 1,
+                        u_projection);
+
     for (int i = 0; i < SHADERS_COUNT; i++) {
         GLuint fs = create_shader(shader_file_paths[i], GL_FRAGMENT_SHADER);
 
@@ -113,14 +117,24 @@ int renderer_init(Renderer *renderer)
             return 0;
         }
 
+        glUseProgram(renderer->programs[i]);
+
+        GLchar *u_projection_name = "projection";
+        GLint u_projection_loc = glGetUniformLocation(renderer->programs[i],
+                                                      u_projection_name);
+        if (u_projection_loc == -1) {
+            fprintf(stderr,
+                    "Error getting location of uniform \"%s\" in program %d\n",
+                    u_projection_name, i);
+            return 0;
+        }
+
+        glUniformMatrix4fv(u_projection_loc, 1, GL_FALSE, u_projection);
+
         glDeleteShader(fs);
     }
 
     glDeleteShader(vs);
-
-    GLint loc = glGetUniformLocation(renderer->programs[TEXT_SHADER],
-                                     "texture_image");
-    glUniform1i(loc, 0);
 
     return 1;
 }

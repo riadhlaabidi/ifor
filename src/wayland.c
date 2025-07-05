@@ -315,7 +315,8 @@ int wayland_init(IFOR_state *state)
         return 0;
     }
 
-    if (!renderer_init(state->renderer)) {
+    if (!renderer_init(state->renderer, state->surface_width,
+                       state->surface_height)) {
         return 0;
     }
 

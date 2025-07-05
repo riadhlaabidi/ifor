@@ -36,7 +36,7 @@ char *read_file(const char *path)
         goto defer;
     }
 
-    content = malloc(size * sizeof(char));
+    content = malloc((size + 1) * sizeof(char));
     if (!content) {
         fprintf(stderr,
                 "Failed to allocate memory for file buffer \"%s\": %s\n", path,
@@ -48,6 +48,7 @@ char *read_file(const char *path)
         fprintf(stderr, "Failed to read file \"%s\": %s\n", path,
                 strerror(errno));
     }
+    content[size] = '\0';
 
 defer:
     if (f) {

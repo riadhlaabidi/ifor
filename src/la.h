@@ -19,4 +19,7 @@ typedef struct {
 Vec4f vec4f(float x, float y, float z, float w);
 Vec4f vec4fu(float x);
 
+void orthographic_matrix(float left, float right, float bottom, float top,
+                         float near, float far, float *matrix);
+
 #endif /* end of include guard: IFOR_LA_H */

@@ -2,6 +2,7 @@
 #define IFOR_RENDERER_H
 
 #include <GLES3/gl3.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "la.h"
@@ -35,7 +36,7 @@ typedef enum {
     VERTEX_ATTRIBUTE_TEXTURE_COORD,
 } VertexAttribute;
 
-int renderer_init(Renderer *renderer);
+int renderer_init(Renderer *renderer, float w_width, float w_height);
 
 void renderer_image_rectangle(Renderer *renderer, Vec2f position, Vec2f size,
                               Vec2f texture_position, Vec2f texture_size,

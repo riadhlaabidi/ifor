@@ -16,4 +16,3 @@ out vec4 frag_color;
 void main(void) {
     frag_color = vec4(1, 1, 1, texture(texture_image, out_texture_coord).r) * out_color;
 }
-

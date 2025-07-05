@@ -1,5 +1,6 @@
 #include <GLES3/gl3.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include "config.h"
@@ -88,25 +89,25 @@ int freetype_init(FT_Library *library, FT_Face *face)
 void freetype_render_text(Atlas *atlas, Renderer *renderer, const char *text,
                           size_t text_size, Vec2f position, Vec4f color)
 {
-    // TODO: better solution for coordinates normalization
-
-    float sx = 2.0 / 900;
-    float sy = 2.0 / 400;
-
     for (size_t i = 0; i < text_size; i++) {
-        int glyph_index = text[i];
+        int glyph_index = (unsigned char)text[i];
+        if (glyph_index >= 128) {
+            // unsupported non-ASCII
+            glyph_index = '?';
+        }
+
         CharacterInfo chi = atlas->metrics[glyph_index];
 
-        float x2 = position.x + chi.bl * sx;
-        float y2 = -position.y - chi.bt * sy;
-        float w = chi.bw * sx;
-        float h = chi.bh * sy;
+        float x = position.x + chi.bl;
+        float y = -position.y - chi.bt;
+        float w = chi.bw;
+        float h = chi.bh;
 
-        position.x += chi.ax * sx;
-        position.y += chi.ay * sy;
+        position.x += chi.ax;
+        position.y += chi.ay;
 
         renderer_image_rectangle(
-            renderer, vec2f(x2, -y2), vec2f(w, -h), vec2f(chi.tx, 0.0f),
+            renderer, vec2f(x, -y), vec2f(w, -h), vec2f(chi.tx, 0.0f),
             vec2f(chi.bw / atlas->width, chi.bh / atlas->height), color);
     }
 }
