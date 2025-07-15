@@ -186,6 +186,16 @@ void renderer_image_rectangle(Renderer *renderer, Vec2f position, Vec2f size,
                   vec2f_add(texture_position, texture_size));
 }
 
+void renderer_solid_rectanlge(Renderer *renderer, Vec2f position, Vec2f size,
+                              Vec4f color)
+{
+    Vec2f empty = vec2f(0, 0);
+    renderer_quad(renderer, position, vec2f_add(position, vec2f(size.x, 0)),
+                  vec2f_add(position, vec2f(0, size.y)),
+                  vec2f_add(position, size), color, color, color, color, empty,
+                  empty, empty, empty);
+}
+
 void renderer_cleanup(Renderer *renderer)
 {
     glDisableVertexAttribArray(VERTEX_ATTRIBUTE_COORD2D);

@@ -10,6 +10,8 @@
 #include "renderer.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
+#define ITEMS_PER_LIST 6
+
 typedef struct {
     struct wl_display *display;
     struct wl_registry *registry;
@@ -42,8 +44,8 @@ typedef struct {
     int surface_configured;
 } IFOR_state;
 
-void init_state(IFOR_state *state, Renderer *rederer, uint32_t w_width,
-                uint32_t w_height);
+void state_init(IFOR_state *state, Renderer *rederer, Atlas *atlas,
+                uint32_t w_width, uint32_t w_height);
 
 void render(IFOR_state *state);
 

@@ -1,4 +1,3 @@
-#include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include <assert.h>
 #include <stdio.h>
@@ -8,7 +7,6 @@
 #include <wayland-egl.h>
 #include <xkbcommon/xkbcommon.h>
 
-#include "renderer.h"
 #include "wayland.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
@@ -17,6 +15,9 @@ static void layer_surface_configure(void *data,
                                     uint32_t serial, uint32_t width,
                                     uint32_t height)
 {
+    (void)width;
+    (void)height;
+
     IFOR_state *state = data;
     if (state->surface_configured) {
         return;
@@ -220,7 +221,7 @@ static const struct wl_registry_listener registry_listener = {
     .global_remove = registry_global_remove,
 };
 
-static int wayland_egl_init(IFOR_state *state)
+int wayland_egl_init(IFOR_state *state)
 {
     state->egl_display = eglGetDisplay(state->display);
 
@@ -311,16 +312,6 @@ int wayland_init(IFOR_state *state)
         state->layer_surface,
         ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE);
 
-    if (!wayland_egl_init(state)) {
-        return 0;
-    }
-
-    if (!renderer_init(state->renderer, state->surface_width,
-                       state->surface_height)) {
-        return 0;
-    }
-
-    wl_surface_commit(state->surface);
     // struct wl_callback *callback = wl_surface_frame(state.surface);
     // wl_callback_add_listener(callback, &surface_frame_listener, &state);
 
@@ -330,6 +321,7 @@ int wayland_init(IFOR_state *state)
 void wayland_main_loop(IFOR_state *state)
 {
 
+    wl_surface_commit(state->surface);
     while (!state->quit && wl_display_dispatch(state->display)) {
     }
 }

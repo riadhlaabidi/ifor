@@ -24,8 +24,7 @@ typedef struct {
 typedef struct {
     GLuint programs[SHADERS_COUNT];
     GLuint vbo;
-
-    GLint uniforms[1];
+    GLuint vao;
     Vertex vertices[100000];
     size_t vertices_count;
 } Renderer;
@@ -37,6 +36,9 @@ typedef enum {
 } VertexAttribute;
 
 int renderer_init(Renderer *renderer, float w_width, float w_height);
+
+void renderer_solid_rectanlge(Renderer *renderer, Vec2f position, Vec2f size,
+                              Vec4f color);
 
 void renderer_image_rectangle(Renderer *renderer, Vec2f position, Vec2f size,
                               Vec2f texture_position, Vec2f texture_size,

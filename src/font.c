@@ -1,24 +1,47 @@
 #include <GLES3/gl3.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
 #include "config.h"
 #include "font.h"
-#include "freetype/freetype.h"
+
 #include "la.h"
 #include "renderer.h"
 
+#define FONT_SCALE 2
+#define GLYPH_TEXTURE_PADDING 2
+
+int freetype_init(FT_Library *library, FT_Face *face)
+{
+    if (FT_Init_FreeType(library)) {
+        fprintf(stderr, "[FreeType] Error during library initialization.\n");
+        return 0;
+    }
+    if (FT_New_Face(*library, font_path, 0, face)) {
+        fprintf(stderr, "[FreeType] Error loading font face \"%s\".\n",
+                font_path);
+        return 0;
+    }
+
+    FT_UInt upscaled = font_size * FONT_SCALE;
+    if (FT_Set_Pixel_Sizes(*face, 0, upscaled)) {
+        fprintf(stderr, "[FreeType] Error setting pixel sizes.\n");
+        return 0;
+    }
+
+    return 1;
+}
+
 int freetype_create_texture_atlas(Atlas *atlas, FT_Face face)
 {
-
     for (int i = 32; i < 128; i++) {
         if (FT_Load_Char(face, i, FT_LOAD_RENDER)) {
             fprintf(stderr, "[FreeType] Error loading character \'%c\'\n", i);
             return 0;
         }
 
-        atlas->width += face->glyph->bitmap.width;
+        // Padding left and right for each glyph
+        atlas->width += face->glyph->bitmap.width + 2 * GLYPH_TEXTURE_PADDING;
         if (face->glyph->bitmap.rows > atlas->height) {
             atlas->height = face->glyph->bitmap.rows;
         }
@@ -38,50 +61,36 @@ int freetype_create_texture_atlas(Atlas *atlas, FT_Face face)
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     // Create an empty texture for the atlas
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlas->width, atlas->height, 0,
-                 GL_RED, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, (GLsizei)atlas->width,
+                 (GLsizei)atlas->height, 0, GL_ALPHA, GL_UNSIGNED_BYTE, NULL);
 
-    int x = 0;
+    int x = GLYPH_TEXTURE_PADDING;
     for (int i = 32; i < 128; i++) {
         if (FT_Load_Char(face, i, FT_LOAD_RENDER)) {
             fprintf(stderr, "[FreeType] Error loading character \'%c\'\n", i);
             return 0;
         }
 
-        atlas->metrics[i].ax = face->glyph->advance.x >> 6;
-        atlas->metrics[i].ay = face->glyph->advance.y >> 6;
-        atlas->metrics[i].bw = face->glyph->bitmap.width;
-        atlas->metrics[i].bh = face->glyph->bitmap.rows;
-        atlas->metrics[i].bl = face->glyph->bitmap_left;
-        atlas->metrics[i].bt = face->glyph->bitmap_top;
+        FT_GlyphSlot g = face->glyph;
+
+        atlas->metrics[i].ax = (float)(g->advance.x >> 6) / FONT_SCALE;
+        atlas->metrics[i].ay = (float)(g->advance.y >> 6) / FONT_SCALE;
+        atlas->metrics[i].bw = (float)g->bitmap.width / FONT_SCALE;
+        atlas->metrics[i].bh = (float)g->bitmap.rows / FONT_SCALE;
+        atlas->metrics[i].bl = (float)g->bitmap_left / FONT_SCALE;
+        atlas->metrics[i].bt = (float)g->bitmap_top / FONT_SCALE;
         atlas->metrics[i].tx = (float)x / (float)atlas->width;
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, x, 0, face->glyph->bitmap.width,
-                        face->glyph->bitmap.rows, GL_RED, GL_UNSIGNED_BYTE,
-                        face->glyph->bitmap.buffer);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, x, 0, (GLsizei)g->bitmap.width,
+                        (GLsizei)g->bitmap.rows, GL_ALPHA, GL_UNSIGNED_BYTE,
+                        g->bitmap.buffer);
 
-        x += face->glyph->bitmap.width;
+        x += face->glyph->bitmap.width + 2 * GLYPH_TEXTURE_PADDING;
     }
 
-    return 1;
-}
-
-int freetype_init(FT_Library *library, FT_Face *face)
-{
-    if (FT_Init_FreeType(library)) {
-        fprintf(stderr, "[FreeType] Error during library initialization.\n");
-        return 0;
-    }
-    if (FT_New_Face(*library, font, 0, face)) {
-        fprintf(stderr, "[FreeType] Error loading font face \"%s\".\n", font);
-        return 0;
-    }
-
-    if (FT_Set_Pixel_Sizes(*face, 0, 16)) {
-        fprintf(stderr, "[FreeType] Error setting pixel sizes.\n");
-        return 0;
-    }
+    atlas->width /= FONT_SCALE;
+    atlas->height /= FONT_SCALE;
 
     return 1;
 }
@@ -108,6 +117,19 @@ void freetype_render_text(Atlas *atlas, Renderer *renderer, const char *text,
 
         renderer_image_rectangle(
             renderer, vec2f(x, -y), vec2f(w, -h), vec2f(chi.tx, 0.0f),
-            vec2f(chi.bw / atlas->width, chi.bh / atlas->height), color);
+            vec2f(chi.bw / (float)atlas->width, chi.bh / (float)atlas->height),
+            color);
+
+        glBufferSubData(GL_ARRAY_BUFFER, 0,
+                        renderer->vertices_count * sizeof(Vertex),
+                        renderer->vertices);
+        glDrawArrays(GL_TRIANGLES, 0, renderer->vertices_count);
+        renderer->vertices_count = 0;
     }
+}
+
+void freetype_cleanup(FT_Library library, FT_Face face)
+{
+    FT_Done_Face(face);
+    FT_Done_FreeType(library);
 }

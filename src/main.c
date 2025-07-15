@@ -1,7 +1,4 @@
-#include <stdlib.h>
-
 #include "font.h"
-#include "freetype/freetype.h"
 #include "ifor.h"
 #include "renderer.h"
 #include "wayland.h"
@@ -10,11 +7,9 @@ int main(void)
 {
     IFOR_state state = {0};
     Renderer renderer = {0};
-    init_state(&state, &renderer, 900, 400);
+    Atlas atlas = {0};
 
-    if (!wayland_init(&state)) {
-        return EXIT_FAILURE;
-    }
+    state_init(&state, &renderer, &atlas, 900, 400);
 
     FT_Library library;
     FT_Face face;
@@ -23,17 +18,27 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    Atlas atlas = {0};
+    if (!wayland_init(&state)) {
+        return EXIT_FAILURE;
+    }
+
+    if (!wayland_egl_init(&state)) {
+        return EXIT_FAILURE;
+    }
+
+    if (!renderer_init(&renderer, state.surface_width, state.surface_height)) {
+        return EXIT_FAILURE;
+    }
+
     if (!freetype_create_texture_atlas(&atlas, face)) {
         return EXIT_FAILURE;
     }
-    state.atlas = &atlas;
 
     wayland_main_loop(&state);
 
     wayland_cleanup(&state);
-    renderer_cleanup(state.renderer);
-    FT_Done_FreeType(library);
+    renderer_cleanup(&renderer);
+    freetype_cleanup(library, face);
 
     return EXIT_SUCCESS;
 }
