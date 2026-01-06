@@ -165,6 +165,7 @@ void renderer_quad(Renderer *renderer, Vec2f position0, Vec2f position1,
                    Vec2f texture_position1, Vec2f texture_position2,
                    Vec2f texture_position3)
 {
+
     renderer_triangle(renderer, position0, position1, position2,
                       texture_position0, texture_position1, texture_position2,
                       color0, color1, color2);
@@ -190,6 +191,7 @@ void renderer_solid_rectanlge(Renderer *renderer, Vec2f position, Vec2f size,
                               Vec4f color)
 {
     Vec2f empty = vec2f(0, 0);
+
     renderer_quad(renderer, position, vec2f_add(position, vec2f(size.x, 0)),
                   vec2f_add(position, vec2f(0, size.y)),
                   vec2f_add(position, size), color, color, color, color, empty,
@@ -207,4 +209,13 @@ void renderer_cleanup(Renderer *renderer)
     }
 
     glDeleteBuffers(1, &renderer->vbo);
+}
+
+void renderer_flush(Renderer *renderer)
+{
+    glBufferSubData(GL_ARRAY_BUFFER, 0,
+                    renderer->vertices_count * sizeof(Vertex),
+                    renderer->vertices);
+    glDrawArrays(GL_TRIANGLES, 0, renderer->vertices_count);
+    renderer->vertices_count = 0;
 }

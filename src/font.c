@@ -119,12 +119,6 @@ void freetype_render_text(Atlas *atlas, Renderer *renderer, const char *text,
             renderer, vec2f(x, -y), vec2f(w, -h), vec2f(chi.tx, 0.0f),
             vec2f(chi.bw / (float)atlas->width, chi.bh / (float)atlas->height),
             color);
-
-        glBufferSubData(GL_ARRAY_BUFFER, 0,
-                        renderer->vertices_count * sizeof(Vertex),
-                        renderer->vertices);
-        glDrawArrays(GL_TRIANGLES, 0, renderer->vertices_count);
-        renderer->vertices_count = 0;
     }
 }
 

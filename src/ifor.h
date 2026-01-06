@@ -40,6 +40,7 @@ typedef struct {
     Renderer *renderer;
     Atlas *atlas;
 
+    int selected;
     int quit;
     int surface_configured;
 } IFOR_state;

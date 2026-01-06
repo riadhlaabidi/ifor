@@ -1,14 +1,10 @@
-#include <GLES3/gl3.h>
 #include <assert.h>
 #include <stdio.h>
-#include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <wayland-egl.h>
-#include <xkbcommon/xkbcommon.h>
 
 #include "wayland.h"
-#include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
 static void layer_surface_configure(void *data,
                                     struct zwlr_layer_surface_v1 *layer_surface,
@@ -19,16 +15,12 @@ static void layer_surface_configure(void *data,
     (void)height;
 
     IFOR_state *state = data;
-    if (state->surface_configured) {
-        return;
-    }
     zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
     if (width && height) {
         wl_egl_window_resize(state->egl_window, width, height, 0, 0);
     }
     render(state);
     eglSwapBuffers(state->egl_display, state->egl_surface);
-    state->surface_configured = 1;
 }
 
 static void layer_surface_closed(void *data,
@@ -83,20 +75,8 @@ static void wl_keyboard_enter(void *data, struct wl_keyboard *wl_keyboard,
     (void)serial;
     (void)surface;
     (void)keys;
-
-    /* NOTE: I should ignore these for the moment */
-
-    // uint32_t *key;
-    // wl_array_for_each(key, keys) {
-    //     char buf[128];
-    //     xkb_keysym_t sym = xkb_state_key_get_one_sym(state->xkb_state,
-    //                                                  *key + 8);
-    //     xkb_keysym_get_name(sym, buf, sizeof(buf));
-    //     fprintf(stderr, "sym: %-12s (%d), ", buf, sym);
-    //     xkb_state_key_get_utf8(state->xkb_state, *key + 8, buf, sizeof(buf));
-    //     fprintf(stderr, "utf8:  '%s'\n", buf);
-    // }
 }
+
 static void wl_keyboard_leave(void *data, struct wl_keyboard *wl_keyboard,
                               uint32_t serial, struct wl_surface *surface)
 {
@@ -118,8 +98,26 @@ static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard,
     IFOR_state *state = data;
     uint32_t keycode = key + 8;
     xkb_keysym_t sym = xkb_state_key_get_one_sym(state->xkb_state, keycode);
+
+    if (key_state == WL_KEYBOARD_KEY_STATE_RELEASED) {
+        // ignore
+        return;
+    }
+
     if (sym == XKB_KEY_Escape) {
         state->quit = 1;
+    } else if (sym == XKB_KEY_Down) {
+        state->selected++;
+        state->selected %= 4;
+        render(state);
+        eglSwapBuffers(state->egl_display, state->egl_surface);
+    } else if (sym == XKB_KEY_Up) {
+        if (state->selected == 0) {
+            state->selected = 4;
+        }
+        state->selected--;
+        render(state);
+        eglSwapBuffers(state->egl_display, state->egl_surface);
     } else {
         // char buf[128];
         // xkb_keysym_get_name(sym, buf, sizeof(buf));
@@ -130,6 +128,7 @@ static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard,
         // fprintf(stderr, "utf8: '%s'\n", buf);
     }
 }
+
 static void wl_keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard,
                                   uint32_t serial, uint32_t mods_depressed,
                                   uint32_t mods_latched, uint32_t mods_locked,
@@ -141,6 +140,7 @@ static void wl_keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard,
     xkb_state_update_mask(state->xkb_state, mods_depressed, mods_latched,
                           mods_locked, 0, 0, group);
 }
+
 static void wl_keyboard_repeat_info(void *data, struct wl_keyboard *wl_keyboard,
                                     int32_t rate, int32_t delay)
 {
@@ -148,7 +148,6 @@ static void wl_keyboard_repeat_info(void *data, struct wl_keyboard *wl_keyboard,
     (void)wl_keyboard;
     (void)rate;
     (void)delay;
-    /* TODO: repeating text input and keyboard shortcuts? timing? */
 }
 
 static const struct wl_keyboard_listener wl_keyboard_listener = {
@@ -297,6 +296,11 @@ int wayland_init(IFOR_state *state)
 
     wl_registry_add_listener(state->registry, &registry_listener, state);
     wl_display_roundtrip(state->display);
+
+    if (!state->layer_shell) {
+        fprintf(stderr, "layer_shell not supported by current compositor.\n");
+        return 0;
+    }
 
     state->surface = wl_compositor_create_surface(state->compositor);
     state->layer_surface = zwlr_layer_shell_v1_get_layer_surface(

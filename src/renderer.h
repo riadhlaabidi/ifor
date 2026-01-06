@@ -58,6 +58,7 @@ void renderer_triangle(Renderer *renderer, Vec2f position0, Vec2f position1,
 void renderer_vertex(Renderer *renderer, Vec2f position, Vec2f texture_position,
                      Vec4f color);
 
+void renderer_flush(Renderer *renderer);
 void renderer_cleanup(Renderer *renderer);
 
 #endif /* end of include guard: IFOR_RENDERER_H */
